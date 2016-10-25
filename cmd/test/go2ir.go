@@ -10,7 +10,7 @@ import (
 	"github.com/miyo/go2ir/synthesijer"
 )
 
-func parse(src string) {
+func body(src string) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, src, nil, 0)
 	if err != nil {
@@ -37,7 +37,7 @@ func main() {
 			return
 		}
 		for _, src := range c.Args(){
-			parse(src)
+			body(src)
 		}
 	}
 	app.Run(os.Args)
