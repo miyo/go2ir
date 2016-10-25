@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"github.com/codegangsta/cli"
 	"github.com/miyo/go2ir/synthesijer"
 )
@@ -18,11 +19,11 @@ func body(src string) {
 	}
 
 	target_name := src[:strings.LastIndex(src, ".")]
-	target := synthesijer.Module{Name: target_name}
+	target := synthesijer.Module{Name: filepath.Base(target_name)}
 
 	synthesijer.Parse(file, &target)
 
-	synthesijer.GenerateModule(&target)
+	synthesijer.GenerateModule(&target, target.Name)
 
 }
 

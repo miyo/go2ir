@@ -1,9 +1,18 @@
 package synthesijer
 
-import (
-	"fmt"
-	"os"
-)
+type SlotItem struct{
+	Next *SlotItem
+	Op string
+	Dest string
+	Src string
+	StepIds []int
+}
+
+type Slot struct{
+	Next *Slot
+	Id int
+	Items *SlotItem
+}
 
 type Variable struct{
 	Next *Variable
@@ -19,6 +28,8 @@ type Board struct{
 	Next *Board
 	Name string
 	Variables *Variable
+	Slots *Slot
+	NextSlotId int
 }
 
 type Module struct{
@@ -27,64 +38,25 @@ type Module struct{
 	Boards *Board
 }
 
-func GenerateVariable(dest *os.File, v *Variable){
-	s := fmt.Sprintf("(VAR INT ")
-	s += v.Name + " "
-	s += fmt.Sprintf(":public %v ", v.PublicFlag)
-	s += fmt.Sprintf(":global_constant %v ", v.GlobalConstant)
-	s += fmt.Sprintf(":method_param %v ", v.MethodParam)
-	s += ":original " + v.OriginalName + " "
-	s += ":method " + v.MethodName + " "
-	s += fmt.Sprintf(":private_method %v ", v.PrivateMethodFlag)
-	s += fmt.Sprintf(":member %v ", v.MemberFlag)
-	s += ")\n"
-	dest.Write([]byte(s))
+
+func (b *Board) AddSlot(slot *Slot) *Slot{
+	b.Slots, slot.Next = slot, b.Slots
+	b.NextSlotId++
+	return slot
 }
 
-func GenerateBoard(dest *os.File, b *Board){
-	dest.Write([]byte("  (BOARD INT " + b.Name + "\n"))
-	dest.Write([]byte("    (VARIABLES \n"))
-	fmt.Println(b)
-	for v := b.Variables; v != nil; v = v.Next {
-		GenerateVariable(dest, v)
-	}
-	dest.Write([]byte("    )\n"))
-	dest.Write([]byte("    (SEQUENCER " + b.Name + "\n"))
-	
-	dest.Write([]byte("      (SLOT 0 \n"))
-	dest.Write([]byte("        (METHOD_EXIT :next (1))\n"))
-	dest.Write([]byte("      )"))
-	
-	dest.Write([]byte("      (SLOT 1 \n"))
-	dest.Write([]byte("        (METHOD_ENTRY :next (2))\n"))
-	dest.Write([]byte("      )"))
-	
-	dest.Write([]byte("      (SLOT 2 \n"))
-	dest.Write([]byte("        (JP :next (0))\n"))
-	dest.Write([]byte("      )"))
-	
-	dest.Write([]byte("    )\n"))
-	dest.Write([]byte("  )\n"))
+func (s *Slot) AddItem(item *SlotItem) *SlotItem{
+	s.Items, item.Next = item, s.Items
+	return item
 }
 
-func GenerateModule(m *Module){
+func (b *Board) AddVariable(v *Variable) *Variable{
+	b.Variables, v.Next = v, b.Variables
+	return v
+}
 
-	dest, err := os.Create(m.Name + ".ir")
-	if err != nil {
-		panic(err)
-	}
-	defer dest.Close()
-
-	dest.Write([]byte("(MODULE " + m.Name + "\n"))
-	dest.Write([]byte("  (VARIABLES \n"))
-	for v := m.Variables; v != nil; v = v.Next {
-		GenerateVariable(dest, v)
-	}
-	dest.Write([]byte("  )\n"))
-	for b := m.Boards; b != nil; b = b.Next {
-		GenerateBoard(dest, b)
-	}
-	dest.Write([]byte(")\n"))
-
+func (m *Module) AddBoard(b *Board) *Board{
+	m.Boards, b.Next = b, m.Boards
+	return b
 }
 
