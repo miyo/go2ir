@@ -67,7 +67,7 @@ func GenerateBoard(dest *os.File, b *Board){
 	dest.Write([]byte("  )\n"))
 }
 
-func GenerateModule(m Module){
+func GenerateModule(m *Module){
 
 	dest, err := os.Create(m.Name + ".ir")
 	if err != nil {
