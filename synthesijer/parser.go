@@ -117,8 +117,8 @@ func ParseBlock(board *Board, block *ast.BlockStmt){
 			if len(returns) == 1 {
 				slot.AddItem(&SlotItem{Op: "RETURN", Src:returns[0], StepIds: []int{0} })
 			}else if len(returns) > 1 {
-				for _, ret := range returns{
-					slot.AddItem(&SlotItem{Op: "MULTI_RETURN", Src:ret, StepIds: []int{0} })
+				for i, ret := range returns{
+					slot.AddItem(&SlotItem{Op: "MULTI_RETURN", Dest:fmt.Sprint(i), Src:ret, StepIds: []int{0} })
 				}
 			}
 		default:
