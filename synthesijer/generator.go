@@ -38,7 +38,7 @@ func GenerateVariable(dest *os.File, v *Variable){
 }
 
 func GenerateBoard(dest *os.File, b *Board){
-	dest.Write([]byte("  (BOARD INT " + b.Name + "\n"))
+	dest.Write([]byte("  (BOARD " + b.Type + " " + b.Name + "\n"))
 	dest.Write([]byte("    (VARIABLES \n"))
 	fmt.Println(b)
 	for v := b.Variables; v != nil; v = v.Next {

@@ -27,6 +27,7 @@ type Variable struct{
 type Board struct{
 	Next *Board
 	Name string
+	Type string
 	Variables *Variable
 	Slots *Slot
 	NextSlotId int
@@ -41,7 +42,7 @@ type Module struct{
 
 func (b *Board) AddSlot(slot *Slot) *Slot{
 	b.Slots, slot.Next = slot, b.Slots
-	b.NextSlotId++
+	defer func(){b.NextSlotId++}()
 	return slot
 }
 

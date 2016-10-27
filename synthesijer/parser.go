@@ -70,8 +70,16 @@ func Parse(file *ast.File, target *Module) {
 			}
 			if td.Type.Results != nil && td.Type.Results.NumFields() > 0 {
 				fmt.Println("##### returns")
-				for _, r := range td.Type.Results.List {
-					fmt.Println(r.Type, r.Names)
+				if td.Type.Results.NumFields() == 1 {
+					b.Type = convType(fmt.Sprintf("%v", td.Type.Results.List[0].Type))
+				}else{
+					sep := "("
+					for _, r := range td.Type.Results.List {
+						b.Type += sep + convType(fmt.Sprintf("%v", r.Type))
+						sep = " "
+						fmt.Println(r.Type, r.Names)
+					}
+					b.Type += ")"
 				}
 			}
 			if td.Body != nil {
@@ -87,6 +95,13 @@ func Parse(file *ast.File, target *Module) {
 
 }
 
+func convType(s string) string{
+	switch s{
+	case "int": return "INT"
+	default: return "VOID"
+	}
+}
+
 func ParseBlock(board *Board, block *ast.BlockStmt){
 	
 	for _, s := range block.List{
@@ -96,10 +111,13 @@ func ParseBlock(board *Board, block *ast.BlockStmt){
 		case *ast.ReturnStmt:
 			fmt.Println("### ReturnStmt")
 			slot := board.AddSlot(&Slot{Id: board.NextSlotId})
-			returns := ParseExprList(board, slot, td.Results)
-			retSlot := board.AddSlot(&Slot{Id: board.NextSlotId})
-			for _, ret := range returns{
-				retSlot.AddItem(&SlotItem{Op: "RETURN", Src:ret, StepIds: []int{0} })
+			returns, slot := ParseExprList(board, slot, td.Results)
+			if len(returns) == 1 {
+				slot.AddItem(&SlotItem{Op: "RETURN", Src:returns[0], StepIds: []int{0} })
+			}else if len(returns) > 1 {
+				for _, ret := range returns{
+					slot.AddItem(&SlotItem{Op: "MULTI_RETURN", Src:ret, StepIds: []int{0} })
+				}
 			}
 		default:
 			fmt.Println("### otherwise")
@@ -109,43 +127,50 @@ func ParseBlock(board *Board, block *ast.BlockStmt){
 
 }
 
-func ParseExprList(board *Board, slot *Slot, exprs []ast.Expr) []string{
+func ParseExprList(board *Board, slot *Slot, exprs []ast.Expr) ([]string, *Slot){
 	var results []string
+	new_slot := slot
+	var tmp string
 	for _,expr := range exprs {
-		results = append(results, ParseExpr(board, slot, expr))
+		tmp, new_slot = ParseExpr(board, slot, expr)
+		results = append(results, tmp)
 	}
-	return results
+	return results, new_slot
 }
 
-func ParseExpr(board *Board, slot *Slot, expr ast.Expr) string{
+func ParseExpr(board *Board, slot *Slot, expr ast.Expr) (string, *Slot){
 	var ret string
+	ret_slot := slot
 	switch td := expr.(type) {
 	case *ast.BinaryExpr:
-		ret = ParseBinaryExpr(board, slot, td)
+		ret, ret_slot = ParseBinaryExpr(board, slot, td)
 	case *ast.Ident:
-		ret = ParseIdent(td)
+		ret, ret_slot = ParseIdent(td, slot)
 	default:
 		fmt.Println("### otherwise")
 		fmt.Printf("expr %v(%T)\n", expr, expr)
 	}
-	return ret
+	return ret, ret_slot
 }
 
-func ParseBinaryExpr(board *Board, slot *Slot, expr *ast.BinaryExpr) string{
+func ParseBinaryExpr(board *Board, slot *Slot, expr *ast.BinaryExpr) (string, *Slot){
 	fmt.Printf("BinaryExpr %v(%T)\n", expr, expr)
-	rhs := ParseExpr(board, slot, expr.Y) // rhs
-	lhs := ParseExpr(board, slot, expr.X) // lhs
+	new_slot := slot
+	var rhs, lhs string
+	rhs, new_slot = ParseExpr(board, slot, expr.Y) // rhs
+	lhs, new_slot = ParseExpr(board, slot, expr.X) // lhs
 	op := ParseOp(expr.Op)
 	v := board.AddVariable(&Variable{Name: "binary_expr"})
 
 	fmt.Printf("(SET %v (%v %v %v))\n", v.Name, op, lhs, rhs)
-	slot.AddItem(&SlotItem{Op: "SET", Dest: v.Name, Src: fmt.Sprintf("(%v %v %v)", op, lhs, rhs), StepIds: []int{board.NextSlotId}})
-	return v.Name
+	new_slot.AddItem(&SlotItem{Op: "SET", Dest: v.Name, Src: fmt.Sprintf("(%v %v %v)", op, lhs, rhs), StepIds: []int{board.NextSlotId}})
+	new_slot = board.AddSlot(&Slot{Id: board.NextSlotId})
+	return v.Name, new_slot
 }
 
-func ParseIdent(expr *ast.Ident) string{
+func ParseIdent(expr *ast.Ident, slot *Slot) (string, *Slot){
 	fmt.Printf("Ident %v(%T)\n", expr, expr)
-	return expr.Name
+	return expr.Name, slot
 }
 
 func ParseOp(op token.Token) string{
