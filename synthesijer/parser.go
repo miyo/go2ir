@@ -72,14 +72,16 @@ func Parse(file *ast.File, target *Module) {
 				fmt.Println("##### returns")
 				if td.Type.Results.NumFields() == 1 {
 					b.Type = convType(fmt.Sprintf("%v", td.Type.Results.List[0].Type))
-				}else{
-					sep := "("
+				}else if td.Type.Results.NumFields() > 1{
+					sep := "(MULTI "
 					for _, r := range td.Type.Results.List {
 						b.Type += sep + convType(fmt.Sprintf("%v", r.Type))
 						sep = " "
 						fmt.Println(r.Type, r.Names)
 					}
 					b.Type += ")"
+				}else{
+					b.Type = "VOID"
 				}
 			}
 			if td.Body != nil {
