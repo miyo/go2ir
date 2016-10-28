@@ -64,25 +64,15 @@ func Parse(file *ast.File, target *Module) {
 				for _, p := range td.Type.Params.List {
 					fmt.Println(p.Type, p.Names)
 					for _, n := range p.Names {
-						b.AddVariable(&Variable{Name: n.Name, MethodParam: true, OriginalName: n.Name, MethodName: td.Name.Name})
+						t := convTypeFromExpr(p.Type)
+						b.AddVariable(&Variable{Name: n.Name, MethodParam: true, OriginalName: n.Name, MethodName: td.Name.Name, Type: t})
 					}
 				}
 			}
 			if td.Type.Results != nil && td.Type.Results.NumFields() > 0 {
-				fmt.Println("##### returns")
-				if td.Type.Results.NumFields() == 1 {
-					b.Type = convType(fmt.Sprintf("%v", td.Type.Results.List[0].Type))
-				}else if td.Type.Results.NumFields() > 1{
-					sep := "(MULTI "
-					for _, r := range td.Type.Results.List {
-						b.Type += sep + convType(fmt.Sprintf("%v", r.Type))
-						sep = " "
-						fmt.Println(r.Type, r.Names)
-					}
-					b.Type += ")"
-				}else{
-					b.Type = "VOID"
-				}
+				b.Type = convTypeFromFieldList(td.Type.Results)
+			}else{
+				b.Type = "VOID"
 			}
 			if td.Body != nil {
 				ParseBlock(b, td.Body)
@@ -95,6 +85,41 @@ func Parse(file *ast.File, target *Module) {
 		fmt.Println()
 	}
 
+}
+
+func convTypeFromExpr(e ast.Expr) string{
+	switch t := e.(type){
+	case *ast.Ident:
+		return convType(fmt.Sprint(t))
+	case *ast.ArrayType:
+		elm := convTypeFromExpr(t.Elt)
+		return "ArrayType::" + elm
+	case *ast.ChanType:
+		fmt.Println(t.Dir)
+		elm := convTypeFromExpr(t.Value)
+		return "(CHANNEL " + elm + ")"
+	default:
+		fmt.Printf("convTypeFromExpr: %v(%T)\n", t, t)
+		return "UNKNOWN"
+	}
+}
+
+func convTypeFromFieldList(f *ast.FieldList) string{
+	ret := ""
+	if f.NumFields() == 1 {
+		ret = convType(fmt.Sprintf("%v", f.List[0].Type))
+	}else if f.NumFields() > 1{
+		sep := "(MULTIPLE "
+		for _, r := range f.List {
+			ret += sep + convType(fmt.Sprintf("%v", r.Type))
+			sep = " "
+			fmt.Println(r.Type, r.Names)
+		}
+		ret += ")"
+	}else{
+		ret = "VOID"
+	}
+	return ret
 }
 
 func convType(s string) string{
@@ -162,8 +187,7 @@ func ParseBinaryExpr(board *Board, slot *Slot, expr *ast.BinaryExpr) (string, *S
 	rhs, new_slot = ParseExpr(board, slot, expr.Y) // rhs
 	lhs, new_slot = ParseExpr(board, slot, expr.X) // lhs
 	op := ParseOp(expr.Op)
-	v := board.AddVariable(&Variable{Name: "binary_expr"})
-
+	v := board.AddVariable(&Variable{Name: "binary_expr", Type: "INT"})
 	fmt.Printf("(SET %v (%v %v %v))\n", v.Name, op, lhs, rhs)
 	new_slot.AddItem(&SlotItem{Op: "SET", Dest: v.Name, Src: fmt.Sprintf("(%v %v %v)", op, lhs, rhs), StepIds: []int{board.NextSlotId}})
 	new_slot = board.AddSlot(&Slot{Id: board.NextSlotId})

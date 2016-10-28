@@ -24,7 +24,8 @@ func GenerateSlot(dest *os.File, slot *Slot){
 }
 
 func GenerateVariable(dest *os.File, v *Variable){
-	s := fmt.Sprintf("(VAR INT ")
+	s := fmt.Sprintf("(VAR ")
+	s += v.Type + " "
 	s += v.Name + " "
 	s += fmt.Sprintf(":public %v ", v.PublicFlag)
 	s += fmt.Sprintf(":global_constant %v ", v.GlobalConstant)
