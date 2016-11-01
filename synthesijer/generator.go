@@ -24,24 +24,35 @@ func GenerateSlot(dest *os.File, slot *Slot){
 }
 
 func GenerateVariable(dest *os.File, v *Variable){
-	s := fmt.Sprintf("(VAR ")
-	s += v.Type + " "
-	s += v.Name + " "
-	s += fmt.Sprintf(":public %v ", v.PublicFlag)
-	s += fmt.Sprintf(":global_constant %v ", v.GlobalConstant)
-	s += fmt.Sprintf(":method_param %v ", v.MethodParam)
-	s += ":original " + v.OriginalName + " "
-	s += ":method " + v.MethodName + " "
-	s += fmt.Sprintf(":private_method %v ", v.PrivateMethodFlag)
-	s += fmt.Sprintf(":member %v ", v.MemberFlag)
-	s += ")\n"
+	s := ""
+	if v.Constant == true {
+		s += fmt.Sprintf("(CONSTANT ")
+		s += v.Type + " "
+		s += v.Name + " "
+		s += v.Init + " "
+		s += ")\n"
+	}else{
+		s += fmt.Sprintf("(VAR ")
+		s += v.Type + " "
+		s += v.Name + " "
+		s += fmt.Sprintf(":public %v ", v.PublicFlag)
+		s += fmt.Sprintf(":global_constant %v ", v.GlobalConstant)
+		s += fmt.Sprintf(":method_param %v ", v.MethodParam)
+		s += ":original " + v.OriginalName + " "
+		s += ":method " + v.MethodName + " "
+		s += fmt.Sprintf(":private_method %v ", v.PrivateMethodFlag)
+		s += fmt.Sprintf(":member %v ", v.MemberFlag)
+		if v.Init != "" {
+			s += fmt.Sprintf(":init %v ", v.Init)
+		}
+		s += ")\n"
+	}
 	dest.Write([]byte(s))
 }
 
 func GenerateBoard(dest *os.File, b *Board){
 	dest.Write([]byte("  (BOARD " + b.Type + " " + b.Name + "\n"))
 	dest.Write([]byte("    (VARIABLES \n"))
-	fmt.Println(b)
 	for v := b.Variables; v != nil; v = v.Next {
 		GenerateVariable(dest, v)
 	}

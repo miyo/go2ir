@@ -22,6 +22,8 @@ type Variable struct{
 	OriginalName string
 	MethodName string
 	PrivateMethodFlag, VolatileFlag, MemberFlag bool
+	Constant bool
+	Init string
 }
 
 type Board struct{
@@ -53,6 +55,13 @@ func (s *Slot) AddItem(item *SlotItem) *SlotItem{
 
 func (b *Board) AddVariable(v *Variable) *Variable{
 	b.Variables, v.Next = v, b.Variables
+	v.Constant = false
+	return v
+}
+
+func (b *Board) AddConstant(v *Variable) *Variable{
+	b.Variables, v.Next = v, b.Variables
+	v.Constant = true
 	return v
 }
 
