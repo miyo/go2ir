@@ -70,3 +70,14 @@ func (m *Module) AddBoard(b *Board) *Board{
 	return b
 }
 
+func (m *Module) AddVariable(v *Variable) *Variable{
+	m.Variables, v.Next = v, m.Variables
+	v.Constant = false
+	return v
+}
+
+func (m *Module) AddConstant(v *Variable) *Variable{
+	m.Variables, v.Next = v, m.Variables
+	v.Constant = true
+	return v
+}

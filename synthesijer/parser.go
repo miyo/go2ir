@@ -38,15 +38,23 @@ func Parse(file *ast.File, target *Module) {
 					}
 				}
 			case token.CONST:
-			case token.VAR:
-				fmt.Println("### var")
 				for _, sp := range td.Specs {
 					s := sp.(*ast.ValueSpec)
-					fmt.Println(s.Names)
-					fmt.Println(s.Type)
-					fmt.Printf("type= %T(%v)\n", s.Type, s.Type)
+					t := convTypeFromExpr(s.Type)
+					for _, ss := range s.Names{
+						target.AddVariable(&Variable{Name: ss.Name, OriginalName: ss.Name, Type: t})
+					}
 				}
-
+			case token.VAR:
+				for _, sp := range td.Specs {
+					s := sp.(*ast.ValueSpec)
+					t := convTypeFromExpr(s.Type)
+					for i, ss := range s.Names{
+						fmt.Printf("  var name=%v(%T) init=%v(%T)\n", s.Names[i], s.Names[i], s.Values[i], s.Values[i])
+						ParseExpr(nil, nil, s.Values[i])
+						target.AddVariable(&Variable{Name: ss.Name, OriginalName: ss.Name, Type: t})
+					}
+				}
 			default:
 
 			}
@@ -77,6 +85,8 @@ func Parse(file *ast.File, target *Module) {
 			slot := b.AddSlot(&Slot{Id: b.NextSlotId})
 			slot.Items = &SlotItem{Op: "JP", StepIds: []int{0}}
 		default:
+			fmt.Println("### otherwise")
+			fmt.Printf("statement %v(%T)\n", decl, decl)
 		}
 
 	}
@@ -155,13 +165,23 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 				}
 			}
 		case *ast.SendStmt:
-			fmt.Println("### Send")
-			fmt.Printf("  chan:(%v:%T)\n", td.Chan, td.Chan)
-			fmt.Printf("  value:(%v:%T)\n", td.Value, td.Value)
+			//fmt.Println("### Send")
+			//fmt.Printf("  chan:(%v:%T)\n", td.Chan, td.Chan)
+			//fmt.Printf("  value:(%v:%T)\n", td.Value, td.Value)
 
 			slot = board.AddSlot(&Slot{Id: board.NextSlotId})
 			slot.AddItem(&SlotItem{Op: "FIFO_WRITE", Dest: fmt.Sprint(td.Chan), Src: fmt.Sprint("(ASSIGN ", td.Value, " )"), StepIds: []int{board.NextSlotId}})
 			
+		case *ast.GoStmt:
+			fmt.Println("### GoStmt")
+			slot = board.AddSlot(&Slot{Id: board.NextSlotId})
+			_, slot = ParseExpr(board, slot, td.Call)
+			
+		case *ast.ExprStmt:
+			fmt.Println("### ExprStmt")
+			slot = board.AddSlot(&Slot{Id: board.NextSlotId})
+			_, slot = ParseExpr(board, slot, td.X)
+
 		case *ast.RangeStmt:
 			//fmt.Println("### RangeStmt")
 			//fmt.Printf("  key(%v:%T)\n", td.Key, td.Key)
@@ -239,9 +259,16 @@ func ParseExpr(board *Board, slot *Slot, expr ast.Expr) (string, *Slot){
 		ret, ret_slot = ParseIdent(td, slot)
 	case *ast.BasicLit:
 		ret, ret_slot = td.Value, slot
+	case *ast.CallExpr:
+		ret, ret_slot = ParseCallExpr(board, slot, td)
+	case *ast.ChanType:
+		fmt.Printf(" ** expr ChanType %v(%T)\n", expr, expr)
+		ret, ret_slot = "", slot
+	case *ast.SliceExpr:
+		fmt.Printf(" ** expr Slice %v(%T)\n", expr, expr)
+		ret, ret_slot = "", slot
 	default:
-		fmt.Println("### expr otherwise")
-		fmt.Printf("expr %v(%T)\n", expr, expr)
+		fmt.Printf(" ** expr otherwise expr %v(%T)\n", expr, expr)
 	}
 	return ret, ret_slot
 }
@@ -265,8 +292,21 @@ func ParseBinaryExpr(board *Board, slot *Slot, expr *ast.BinaryExpr) (string, *S
 }
 
 func ParseIdent(expr *ast.Ident, slot *Slot) (string, *Slot){
-	//fmt.Printf("Ident %v(%T)\n", expr, expr)
+	fmt.Printf(" ** Ident %v(%T)\n", expr, expr)
 	return expr.Name, slot
+}
+
+func ParseCallExpr(board *Board, slot *Slot, expr *ast.CallExpr) (string, *Slot){
+
+	fmt.Println("ParseCallExpr")
+	fmt.Printf(" ** call fun=%v(%T), args=%v(%T), ellipsis=%v(%T)\n",
+		expr.Fun, expr.Fun, expr.Args, expr.Args, expr.Ellipsis, expr.Ellipsis)
+
+	for _, e := range expr.Args {
+		ParseExpr(board, slot, e)
+	}
+	
+	return "", slot
 }
 
 func ParseOp(op token.Token) string{
