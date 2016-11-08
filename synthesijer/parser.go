@@ -152,16 +152,31 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 					init_val := board.AddConstant(&Variable{Name: "init_val", Type: "INT", Init: "0"})
 					board.AddVariable(&Variable{Name: fmt.Sprint(td.Lhs[i]), Type: "INT", Init: fmt.Sprintf("(REF CONSTANT %v)", init_val.Name)})
 				}else if td.Tok == token.ASSIGN {
-					rhs, lhs := "", ""
+					var rhs Expr
+					var lhs Expr
 					rhs, slot = ParseExpr(board, slot, td.Rhs[i])
 					lhs, slot = ParseExpr(board, slot, td.Lhs[i])
-					slot.AddItem(&SlotItem{Op: "SET", Dest: lhs, Src: fmt.Sprintf("(ASSIGN %v)", rhs), StepIds: []int{board.NextSlotId}})
+					//slot.AddItem(&SlotItem{Op: "SET", Dest: lhs, Src: fmt.Sprintf("(ASSIGN %v)", rhs), StepIds: []int{board.NextSlotId}})
+					// TODO 本当はlhsがIdentであることを確認して，定義済みのVariableインスタンスを探すべき
+					switch e := rhs.(type){
+					case VarExpr:
+						slot.AddItem(&SlotItem{Op: "SET", Dest: &Variable{Name: lhs.ToSExp()}, Src: AssignExpr{e}, StepIds: []int{board.NextSlotId}})
+					default:
+						slot.AddItem(&SlotItem{Op: "SET", Dest: &Variable{Name: lhs.ToSExp()}, Src: rhs, StepIds: []int{board.NextSlotId}})
+					}
+					
 				}else{
-					ret := ""
-					lhs := ""
+					var ret Expr
+					var lhs Expr
 					ret, slot = GenBinaryExpr(board, slot, td.Lhs[i], td.Rhs[i], td.Tok)
 					lhs, slot = ParseExpr(board, slot, td.Lhs[i])
-					slot.AddItem(&SlotItem{Op: "SET", Dest: lhs, Src: fmt.Sprintf("(ASSIGN %v)", ret), StepIds: []int{board.NextSlotId}})
+					// TODO 本当はlhsがIdentであることを確認して，定義済みのVariableインスタンスを探すべき
+					switch e := ret.(type){
+					case VarExpr:
+						slot.AddItem(&SlotItem{Op: "SET", Dest: &Variable{Name: lhs.ToSExp()}, Src: AssignExpr{e}, StepIds: []int{board.NextSlotId}})
+					default:
+						slot.AddItem(&SlotItem{Op: "SET", Dest: &Variable{Name: lhs.ToSExp()}, Src: ret, StepIds: []int{board.NextSlotId}})
+					}
 				}
 			}
 		case *ast.SendStmt:
@@ -170,7 +185,15 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 			//fmt.Printf("  value:(%v:%T)\n", td.Value, td.Value)
 
 			slot = board.AddSlot(&Slot{Id: board.NextSlotId})
-			slot.AddItem(&SlotItem{Op: "FIFO_WRITE", Dest: fmt.Sprint(td.Chan), Src: fmt.Sprint("(ASSIGN ", td.Value, " )"), StepIds: []int{board.NextSlotId}})
+			var rhs Expr
+			rhs,slot = ParseExpr(board, slot, td.Value)
+			// TODO 本当はtd.Chanに相当す定義済みのVariableインスタンスを探すべき
+			switch e := rhs.(type){
+			case VarExpr:
+				slot.AddItem(&SlotItem{Op: "FIFO_WRITE", Dest: &Variable{Name: fmt.Sprint(td.Chan)}, Src: AssignExpr{e}, StepIds: []int{board.NextSlotId}})
+			default:
+				slot.AddItem(&SlotItem{Op: "FIFO_WRITE", Dest: &Variable{Name: fmt.Sprint(td.Chan)}, Src: rhs, StepIds: []int{board.NextSlotId}})
+			}
 			
 		case *ast.GoStmt:
 			fmt.Println("### GoStmt")
@@ -190,7 +213,7 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 			//fmt.Printf("  body(%v:%T)\n", td.Body, td.Body)
 			board.AddVariable(&Variable{Name: fmt.Sprint(td.Value), Type: "INT"})
 			v := board.AddVariable(&Variable{Name: "range_index", Type: "INT"})
-			v1 := board.AddVariable(&Variable{Name: "range_compare", Type: "INT"})
+			v1 := board.AddVariable(&Variable{Name: "range_compare", Type: "BOOLEAN"})
 			v2 := board.AddVariable(&Variable{Name: "field_length", Type: "INT"})
 			c0 := board.AddConstant(&Variable{Name: "const_zero", Type: "INT", Init: "0"})
 			c1 := board.AddConstant(&Variable{Name: "const_one", Type: "INT", Init: "1"})
@@ -203,31 +226,32 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 			ret_slot := board.AddSlot(&Slot{Id: board.NextSlotId}); slot = ret_slot // range update and return
 			
 			// range setup
-			setup_slot.AddItem(&SlotItem{Op: "SET", Dest: v.Name, Src: fmt.Sprintf("(ASSIGN %v)", c0.Name), StepIds: []int{compare_slot.Id}})
-			setup_slot.AddItem(&SlotItem{Op: "SET", Dest: v2.Name, Src: fmt.Sprintf("(FIELD_ACCESS :obj %v :name %v)", td.X, "length"), StepIds: []int{compare_slot.Id}})
+			setup_slot.AddItem(&SlotItem{Op: "SET", Dest: v, Src: BasicExpr{fmt.Sprintf("(ASSIGN %v)", c0.Name)}, StepIds: []int{compare_slot.Id}})
+			setup_slot.AddItem(&SlotItem{Op: "SET", Dest: v2, Src: BasicExpr{fmt.Sprintf("(FIELD_ACCESS :obj %v :name %v)", td.X, "length")}, StepIds: []int{compare_slot.Id}})
 
 			// range compare
 			compare_slot.AddItem(&SlotItem{Op: "SET",
-				                       Dest: v1.Name,
-				                       Src: fmt.Sprintf("(LT %v %v)", v.Name, v2.Name),
+				                       Dest: v1,
+				                       Src: BinaryExpr{"LT", IdentExpr{v.Name}, IdentExpr{v2.Name}},
 				                       StepIds: []int{cond_slot.Id}})
 			
-			cond_slot.AddItem(&SlotItem{Op: "JT", Src: v1.Name, StepIds: []int{board.NextSlotId, body_entry}})
+			cond_slot.AddItem(&SlotItem{Op: "JT", Src: IdentExpr{v1.Name}, StepIds: []int{board.NextSlotId, body_entry}})
 
-			ret_slot.AddItem(&SlotItem{Op: "SET", Dest: v.Name, Src: fmt.Sprintf("(ADD %v %v)", v.Name, c1.Name), StepIds: []int{compare_slot.Id}})
-			ret_slot.AddItem(&SlotItem{Op: "SET", Dest: v2.Name, Src: fmt.Sprintf("(FIELD_ACCESS :obj %v :name %v)", td.X, "length"), StepIds: []int{compare_slot.Id}})
+			ret_slot.AddItem(&SlotItem{Op: "SET", Dest: v, Src: BasicExpr{fmt.Sprintf("(ADD %v %v)", v.Name, c1.Name)}, StepIds: []int{compare_slot.Id}})
+			ret_slot.AddItem(&SlotItem{Op: "SET", Dest: v2, Src: BasicExpr{fmt.Sprintf("(FIELD_ACCESS :obj %v :name %v)", td.X, "length")}, StepIds: []int{compare_slot.Id}})
 			ret_slot.AddItem(&SlotItem{Op: "JP", StepIds: []int{compare_slot.Id}})
 			
 		case *ast.ReturnStmt:
 			//fmt.Println("### ReturnStmt")
 			slot = board.AddSlot(&Slot{Id: board.NextSlotId})
-			var returns []string
+			var returns []Expr
 			returns, slot = ParseExprList(board, slot, td.Results)
 			if len(returns) == 1 {
 				slot.AddItem(&SlotItem{Op: "RETURN", Src:returns[0], StepIds: []int{0} })
 			}else if len(returns) > 1 {
 				for i, ret := range returns{
-					slot.AddItem(&SlotItem{Op: "MULTI_RETURN", Dest:fmt.Sprint(i), Src:ret, StepIds: []int{0} })
+					// TODO 本当はtd.Chanに相当す定義済みのVariableインスタンスを探すべき
+					slot.AddItem(&SlotItem{Op: "MULTI_RETURN", Dest:&Variable{Name:fmt.Sprint(i)}, Src:ret, StepIds: []int{0} })
 				}
 			}
 		default:
@@ -238,10 +262,10 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 	return slot
 }
 
-func ParseExprList(board *Board, slot *Slot, exprs []ast.Expr) ([]string, *Slot){
-	var results []string
+func ParseExprList(board *Board, slot *Slot, exprs []ast.Expr) ([]Expr, *Slot){
+	var results []Expr
 	new_slot := slot
-	var tmp string
+	var tmp Expr
 	for _,expr := range exprs {
 		tmp, new_slot = ParseExpr(board, slot, expr)
 		results = append(results, tmp)
@@ -249,8 +273,8 @@ func ParseExprList(board *Board, slot *Slot, exprs []ast.Expr) ([]string, *Slot)
 	return results, new_slot
 }
 
-func ParseExpr(board *Board, slot *Slot, expr ast.Expr) (string, *Slot){
-	var ret string
+func ParseExpr(board *Board, slot *Slot, expr ast.Expr) (Expr, *Slot){
+	var ret Expr
 	ret_slot := slot
 	switch td := expr.(type) {
 	case *ast.BinaryExpr:
@@ -258,45 +282,45 @@ func ParseExpr(board *Board, slot *Slot, expr ast.Expr) (string, *Slot){
 	case *ast.Ident:
 		ret, ret_slot = ParseIdent(td, slot)
 	case *ast.BasicLit:
-		ret, ret_slot = td.Value, slot
+		ret, ret_slot = BasicExpr{td.Value}, slot
 	case *ast.CallExpr:
 		ret, ret_slot = ParseCallExpr(board, slot, td)
 	case *ast.ChanType:
 		fmt.Printf(" ** expr ChanType %v(%T)\n", expr, expr)
-		ret, ret_slot = "", slot
+		ret, ret_slot = BasicExpr{""}, slot
 	case *ast.SliceExpr:
 		fmt.Printf(" ** expr Slice %v(%T)\n", expr, expr)
-		ret, ret_slot = "", slot
+		ret, ret_slot = BasicExpr{""}, slot
 	default:
 		fmt.Printf(" ** expr otherwise expr %v(%T)\n", expr, expr)
 	}
 	return ret, ret_slot
 }
 
-func GenBinaryExpr(board *Board, slot *Slot, lhs ast.Expr, rhs ast.Expr, tok token.Token) (string, *Slot){
-	rhs_str, lhs_str := "", ""
+func GenBinaryExpr(board *Board, slot *Slot, lhs ast.Expr, rhs ast.Expr, tok token.Token) (Expr, *Slot){
+	var new_rhs, new_lhs Expr
 	new_slot := slot
-	rhs_str, new_slot = ParseExpr(board, new_slot, rhs) // rhs
-	lhs_str, new_slot = ParseExpr(board, new_slot, lhs) // lhs
+	new_rhs, new_slot = ParseExpr(board, new_slot, rhs) // rhs
+	new_lhs, new_slot = ParseExpr(board, new_slot, lhs) // lhs
 	op := ParseOp(tok)
 	v := board.AddVariable(&Variable{Name: "binary_expr", Type: "INT"})
 	//fmt.Printf("(SET %v (%v %v %v))\n", v.Name, op, lhs_str, rhs_str)
-	new_slot.AddItem(&SlotItem{Op: "SET", Dest: v.Name, Src: fmt.Sprintf("(%v %v %v)", op, lhs_str, rhs_str), StepIds: []int{board.NextSlotId}})
+	new_slot.AddItem(&SlotItem{Op: "SET", Dest: v, Src: BinaryExpr{op, new_lhs, new_rhs}, StepIds: []int{board.NextSlotId}})
 	new_slot = board.AddSlot(&Slot{Id: board.NextSlotId})
-	return v.Name, new_slot
+	return VarExpr{v}, new_slot
 }
 
-func ParseBinaryExpr(board *Board, slot *Slot, expr *ast.BinaryExpr) (string, *Slot){
+func ParseBinaryExpr(board *Board, slot *Slot, expr *ast.BinaryExpr) (Expr, *Slot){
 	//fmt.Printf("BinaryExpr %v(%T)\n", expr, expr)
 	return GenBinaryExpr(board, slot, expr.X, expr.Y, expr.Op)
 }
 
-func ParseIdent(expr *ast.Ident, slot *Slot) (string, *Slot){
-	fmt.Printf(" ** Ident %v(%T)\n", expr, expr)
-	return expr.Name, slot
+func ParseIdent(expr *ast.Ident, slot *Slot) (Expr, *Slot){
+	// TODO 本当はtd.Chanに相当す定義済みのVariableインスタンスを探すべき
+	return VarExpr{&Variable{Name: expr.Name}}, slot
 }
 
-func ParseCallExpr(board *Board, slot *Slot, expr *ast.CallExpr) (string, *Slot){
+func ParseCallExpr(board *Board, slot *Slot, expr *ast.CallExpr) (Expr, *Slot){
 
 	fmt.Println("ParseCallExpr")
 	fmt.Printf(" ** call fun=%v(%T), args=%v(%T), ellipsis=%v(%T)\n",
@@ -306,7 +330,7 @@ func ParseCallExpr(board *Board, slot *Slot, expr *ast.CallExpr) (string, *Slot)
 		ParseExpr(board, slot, e)
 	}
 	
-	return "", slot
+	return BasicExpr{""}, slot
 }
 
 func ParseOp(op token.Token) string{

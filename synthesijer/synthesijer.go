@@ -1,10 +1,59 @@
 package synthesijer
 
+import "fmt"
+
+type Expr interface{
+	ToSExp() string
+}
+
+type BasicExpr struct{
+	str string
+}
+
+type IdentExpr struct{
+	str string
+}
+
+type BinaryExpr struct{
+	op string
+	lhs Expr
+	rhs Expr
+}
+
+type VarExpr struct{
+	Var *Variable
+}
+
+type AssignExpr struct{
+	Var VarExpr
+}
+
+func (e BasicExpr) ToSExp() string{
+	return e.str
+}
+
+func (e IdentExpr) ToSExp() string{
+	return e.str
+}
+
+func (e BinaryExpr) ToSExp() string{
+	return fmt.Sprintf("(%v %v %v)", e.op, e.lhs.ToSExp(), e.rhs.ToSExp())
+}
+
+func (e VarExpr) ToSExp() string{
+	//return fmt.Sprintf("(ASSIGN %v)", e.Var.Name)
+	return e.Var.Name
+}
+
+func (e AssignExpr) ToSExp() string{
+	return fmt.Sprintf("(ASSIGN %v)", e.Var.Var.Name)
+}
+
 type SlotItem struct{
 	Next *SlotItem
 	Op string
-	Dest string
-	Src string
+	Dest *Variable
+	Src Expr
 	StepIds []int
 }
 

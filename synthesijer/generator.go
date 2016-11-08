@@ -6,7 +6,15 @@ import (
 )
 
 func GenerateSlotItem(dest *os.File, item *SlotItem) string{
-	str := fmt.Sprintf("(%v %v %v :next (", item.Op, item.Dest, item.Src);
+	str := "("
+	str += fmt.Sprintf("%v ", item.Op)
+	if item.Dest != nil {
+		str += fmt.Sprintf("%v ", item.Dest.Name)
+	}
+	if item.Src != nil {
+		str += fmt.Sprintf("%v ", item.Src.ToSExp())
+	}
+	str += ":next ("
 	for _,id := range item.StepIds{
 		str += fmt.Sprintf(" %v", id)
 	}
