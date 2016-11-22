@@ -42,7 +42,7 @@ func Parse(file *ast.File, target *Module) {
 					s := sp.(*ast.ValueSpec)
 					t := convTypeFromExpr(s.Type)
 					for _, ss := range s.Names{
-						target.AddVariable(&Variable{Name: ss.Name, OriginalName: ss.Name, Type: t})
+						target.AddVariable(&Variable{Name: ss.Name, OriginalName: ss.Name, Type: t, MethodName: "fefe"})
 					}
 				}
 			case token.VAR:
@@ -52,7 +52,7 @@ func Parse(file *ast.File, target *Module) {
 					for i, ss := range s.Names{
 						fmt.Printf("  var name=%v(%T) init=%v(%T)\n", s.Names[i], s.Names[i], s.Values[i], s.Values[i])
 						ParseExpr(nil, nil, s.Values[i])
-						target.AddVariable(&Variable{Name: ss.Name, OriginalName: ss.Name, Type: t})
+						target.AddVariable(&Variable{Name: ss.Name, OriginalName: ss.Name, Type: t, MethodName: "fefe"})
 					}
 				}
 			default:
@@ -151,6 +151,7 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 				if td.Tok == token.DEFINE {
 					init_val := board.AddConstant(&Variable{Name: "init_val", Type: "INT", Init: "0"})
 					board.AddVariable(&Variable{Name: fmt.Sprint(td.Lhs[i]), Type: "INT", Init: fmt.Sprintf("(REF CONSTANT %v)", init_val.Name)})
+					slot.AddItem(&SlotItem{Op: "JP", StepIds: []int{board.NextSlotId}})
 				}else if td.Tok == token.ASSIGN {
 					var rhs Expr
 					var lhs Expr
@@ -196,12 +197,12 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 			}
 			
 		case *ast.GoStmt:
-			fmt.Println("### GoStmt")
+			//fmt.Println("### GoStmt")
 			slot = board.AddSlot(&Slot{Id: board.NextSlotId})
 			_, slot = ParseExpr(board, slot, td.Call)
 			
 		case *ast.ExprStmt:
-			fmt.Println("### ExprStmt")
+			//fmt.Println("### ExprStmt")
 			slot = board.AddSlot(&Slot{Id: board.NextSlotId})
 			_, slot = ParseExpr(board, slot, td.X)
 
@@ -211,7 +212,7 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 			//fmt.Printf("  value(%v:%T)\n", td.Value, td.Value)
 			//fmt.Printf("  x(%v:%T)\n", td.X, td.X) // value to range over
 			//fmt.Printf("  body(%v:%T)\n", td.Body, td.Body)
-			board.AddVariable(&Variable{Name: fmt.Sprint(td.Value), Type: "INT"})
+			vv := board.AddVariable(&Variable{Name: fmt.Sprint(td.Value), Type: "INT"})
 			v := board.AddVariable(&Variable{Name: "range_index", Type: "INT"})
 			v1 := board.AddVariable(&Variable{Name: "range_compare", Type: "BOOLEAN"})
 			v2 := board.AddVariable(&Variable{Name: "field_length", Type: "INT"})
@@ -234,8 +235,9 @@ func ParseBlock(board *Board, block *ast.BlockStmt) *Slot{
 				                       Dest: v1,
 				                       Src: BinaryExpr{"LT", IdentExpr{v.Name}, IdentExpr{v2.Name}},
 				                       StepIds: []int{cond_slot.Id}})
+			compare_slot.AddItem(&SlotItem{Op: "SET", Dest: vv, Src: BasicExpr{"(ARRAY_ACCESS s range_index)"}, StepIds: []int{compare_slot.Id}}) // TODO
 			
-			cond_slot.AddItem(&SlotItem{Op: "JT", Src: IdentExpr{v1.Name}, StepIds: []int{board.NextSlotId, body_entry}})
+			cond_slot.AddItem(&SlotItem{Op: "JT", Src: IdentExpr{v1.Name}, StepIds: []int{body_entry, board.NextSlotId}})
 
 			ret_slot.AddItem(&SlotItem{Op: "SET", Dest: v, Src: BasicExpr{fmt.Sprintf("(ADD %v %v)", v.Name, c1.Name)}, StepIds: []int{compare_slot.Id}})
 			ret_slot.AddItem(&SlotItem{Op: "SET", Dest: v2, Src: BasicExpr{fmt.Sprintf("(FIELD_ACCESS :obj %v :name %v)", td.X, "length")}, StepIds: []int{compare_slot.Id}})
@@ -339,6 +341,8 @@ func ParseOp(op token.Token) string{
 		return "ADD"
 	case token.ADD_ASSIGN:
 		return "ADD"
+	case token.MUL_ASSIGN:
+		return "MUL32"
 	default:
 		fmt.Printf("(Op %v[%T])\n", op, op)
 	}

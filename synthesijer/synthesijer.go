@@ -75,11 +75,21 @@ type Variable struct{
 	Init string
 }
 
+type VariableRef struct{
+	Next *VariableRef
+	Name string
+	Type string
+	Ref string
+	Ptr string
+	MemberFlag bool
+}
+
 type Board struct{
 	Next *Board
 	Name string
 	Type string
 	Variables *Variable
+	VariableRefs *VariableRef
 	Slots *Slot
 	NextSlotId int
 }
@@ -105,6 +115,11 @@ func (s *Slot) AddItem(item *SlotItem) *SlotItem{
 func (b *Board) AddVariable(v *Variable) *Variable{
 	b.Variables, v.Next = v, b.Variables
 	v.Constant = false
+	return v
+}
+
+func (b *Board) AddVariableRef(v *VariableRef) *VariableRef{
+	b.VariableRefs, v.Next = v, b.VariableRefs
 	return v
 }
 

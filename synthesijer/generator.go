@@ -58,11 +58,26 @@ func GenerateVariable(dest *os.File, v *Variable){
 	dest.Write([]byte(s))
 }
 
+func GenerateVariableRef(dest *os.File, v *VariableRef){
+	s := ""
+	s += fmt.Sprintf("(VAR-REF ")
+	s += v.Type + " "
+	s += v.Name + " "
+	s += fmt.Sprintf(":ref %v ", v.Ref)
+	s += fmt.Sprintf(":ptr %v ", v.Ptr)
+	s += fmt.Sprintf(":member %v", v.MemberFlag)
+	s += ")\n"
+	dest.Write([]byte(s))
+}
+
 func GenerateBoard(dest *os.File, b *Board){
 	dest.Write([]byte("  (BOARD " + b.Type + " " + b.Name + "\n"))
 	dest.Write([]byte("    (VARIABLES \n"))
 	for v := b.Variables; v != nil; v = v.Next {
 		GenerateVariable(dest, v)
+	}
+	for v := b.VariableRefs; v != nil; v = v.Next {
+		GenerateVariableRef(dest, v)
 	}
 	dest.Write([]byte("    )\n"))
 	dest.Write([]byte("    (SEQUENCER " + b.Name + "\n"))
