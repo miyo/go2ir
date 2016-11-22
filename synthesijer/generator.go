@@ -46,7 +46,9 @@ func GenerateVariable(dest *os.File, v *Variable){
 		s += fmt.Sprintf(":public %v ", v.PublicFlag)
 		s += fmt.Sprintf(":global_constant %v ", v.GlobalConstant)
 		s += fmt.Sprintf(":method_param %v ", v.MethodParam)
-		s += ":original " + v.OriginalName + " "
+		if v.OriginalName != "" {
+			s += ":original " + v.OriginalName + " "
+		}
 		s += ":method " + v.MethodName + " "
 		s += fmt.Sprintf(":private_method %v ", v.PrivateMethodFlag)
 		s += fmt.Sprintf(":member %v ", v.MemberFlag)
@@ -91,6 +93,17 @@ func GenerateBoard(dest *os.File, b *Board){
 	dest.Write([]byte("  )\n"))
 }
 
+func GenerateArrayRef(dest *os.File, v *ArrayRef){
+	s := ""
+	s += fmt.Sprintf("(ARRAY-REF ")
+	s += "ARRAY "
+	s += v.Name + " "
+	s += fmt.Sprintf(":depth %v ", v.Depth)
+	s += fmt.Sprintf(":words %v ", v.Words)
+	s += ")\n"
+	dest.Write([]byte(s))
+}
+
 func GenerateModule(m *Module, destfile string){
 
 	dest, err := os.Create(destfile + ".ir")
@@ -101,6 +114,9 @@ func GenerateModule(m *Module, destfile string){
 
 	dest.Write([]byte("(MODULE " + m.Name + "\n"))
 	dest.Write([]byte("  (VARIABLES \n"))
+	for v := m.ArrayRefs; v != nil; v = v.Next {
+		GenerateArrayRef(dest, v)
+	}
 	for v := m.Variables; v != nil; v = v.Next {
 		GenerateVariable(dest, v)
 	}

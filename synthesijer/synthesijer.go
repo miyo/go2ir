@@ -20,6 +20,12 @@ type BinaryExpr struct{
 	rhs Expr
 }
 
+type CallExpr struct{
+	Name string
+	Args *Expr
+	NoWait bool
+}
+
 type VarExpr struct{
 	Var *Variable
 }
@@ -49,6 +55,10 @@ func (e AssignExpr) ToSExp() string{
 	return fmt.Sprintf("(ASSIGN %v)", e.Var.Var.Name)
 }
 
+func (e CallExpr) ToSExp() string{
+	return fmt.Sprintf("(CALL :no_wait %v :name %v :args ())", e.NoWait, e.Name) // TODO
+}
+
 type SlotItem struct{
 	Next *SlotItem
 	Op string
@@ -61,6 +71,7 @@ type Slot struct{
 	Next *Slot
 	Id int
 	Items *SlotItem
+	Board *Board
 }
 
 type Variable struct{
@@ -84,6 +95,13 @@ type VariableRef struct{
 	MemberFlag bool
 }
 
+type ArrayRef struct{
+	Next *ArrayRef
+	Name string
+	Depth int
+	Words int
+}
+
 type Board struct{
 	Next *Board
 	Name string
@@ -92,18 +110,26 @@ type Board struct{
 	VariableRefs *VariableRef
 	Slots *Slot
 	NextSlotId int
+	Module *Module
 }
 
 type Module struct{
 	Name string
 	Variables *Variable
+	ArrayRefs *ArrayRef
 	Boards *Board
+	UniqId int
 }
 
+func (m *Module) getUniqId() int{
+	defer func(){m.UniqId++}()
+	return m.UniqId
+}
 
 func (b *Board) AddSlot(slot *Slot) *Slot{
 	b.Slots, slot.Next = slot, b.Slots
 	defer func(){b.NextSlotId++}()
+	slot.Board = b
 	return slot
 }
 
@@ -115,6 +141,7 @@ func (s *Slot) AddItem(item *SlotItem) *SlotItem{
 func (b *Board) AddVariable(v *Variable) *Variable{
 	b.Variables, v.Next = v, b.Variables
 	v.Constant = false
+	v.MethodName = b.Name
 	return v
 }
 
@@ -140,8 +167,22 @@ func (m *Module) AddVariable(v *Variable) *Variable{
 	return v
 }
 
+func (m *Module) AddArrayRef(v *ArrayRef) *ArrayRef{
+	m.ArrayRefs, v.Next = v, m.ArrayRefs
+	return v
+}
+
 func (m *Module) AddConstant(v *Variable) *Variable{
 	m.Variables, v.Next = v, m.Variables
 	v.Constant = true
 	return v
+}
+
+func (b *Board) searchVariable(n string) *Variable{
+	for v := b.Variables; v != nil; v = v.Next {
+		if(v.OriginalName == n){
+			return v
+		}
+	}
+	return nil
 }

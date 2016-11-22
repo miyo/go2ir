@@ -1,32 +1,36 @@
 package main
 
 
-//var c chan int = make(chan int)
-	
-func f(s []int) int{
+//var c0 chan int = make(chan int)
+//var c1 chan int = make(chan int)
+
+var s0 []int = make([]int, 16)
+var s1 []int = make([]int, 16)
+
+var a int = 0
+var b int = 0
+
+func f(){
 	sum := 0
-	for _,v := range s{
+	for _,v := range s0{
 		sum += v
 	}
-	return sum
+	//c0 <- sum
+	a = sum
 }
 
-func g(s []int){
+func g(){
 	mm := 1
-	for _,v := range s{
+	for _,v := range s1{
 		mm *= v
 	}
-	return mm
+	//c1 <- mm
+	b = mm
 }
-
-
-var S0 []int = make([]int, 100)
-var S1 []int = make([]int, 100)
 
 func h(){
 	
-
-	go f(s0, c)
-	go g(s1, c)
+	go f()
+	go g()
 
 }

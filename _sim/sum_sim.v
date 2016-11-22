@@ -25,7 +25,10 @@ module sum_sim();
   always @(posedge clk) begin
     if(counter == 5) reset <= 1'b0;
     if(counter == 30) kick <= 1'b1; else kick <= 1'b0;
-    if(counter > 32 && busy == 1'b0) $finish;
+    if(counter > 32 && busy == 1'b0) begin
+       $display(sum_c_din);
+       $finish;
+    end
   end
 
    reg signed [32-1 : 0] address;
