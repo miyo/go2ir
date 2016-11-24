@@ -1,6 +1,5 @@
 package main
 
-
 //var c0 chan int = make(chan int)
 //var c1 chan int = make(chan int)
 
@@ -15,7 +14,6 @@ func f(){
 	for _,v := range s0{
 		sum += v
 	}
-	//c0 <- sum
 	a = sum
 }
 
@@ -24,13 +22,10 @@ func g(){
 	for _,v := range s1{
 		mm *= v
 	}
-	//c1 <- mm
 	b = mm
 }
 
 func h(){
-	
 	go f()
 	go g()
-
 }
